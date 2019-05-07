@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: __local_aars__:E.\GitHubRepos\UltiSnake\AndroidStudioUltiSnake\snake\libs\gdx.jar:unspecified@jar">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/snake/libs/gdx.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/snake/libs/gdx-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

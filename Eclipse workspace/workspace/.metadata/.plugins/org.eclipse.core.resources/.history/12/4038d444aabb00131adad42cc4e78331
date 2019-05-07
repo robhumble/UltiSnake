@@ -1,0 +1,1031 @@
+package com.me.snake;
+
+import java.util.Iterator;
+//import java.util.prefs.Preferences;
+
+
+import com.badlogic.gdx.ApplicationListener;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input.Keys;
+import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL10;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Texture.TextureFilter;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.TimeUtils;
+
+public class SnakeGame implements ApplicationListener {
+	
+	//For camera and sprite batch
+	private OrthographicCamera camera;
+	private SpriteBatch batch;
+	private Texture texture;
+	private Sprite sprite;
+		
+	//Screen size info
+	static final int screenWidth = 800;
+	static final int screenHeight = 480;
+	//Play area bounds on screen
+	static final int playAreaXmin = screenWidth/8;
+	static final int playAreaXmax = screenWidth - screenWidth/8;
+	static final int playAreaYmin = 0;
+	static final int playAreaYmax = screenHeight;
+	
+	//Size of rectangles
+	static final int rectangleSize = 16;
+	static final int growSize = 16;
+	
+	
+	//Textures
+	Texture snakeHeadRecTexture;
+	Texture snakeHeadOpenRecTexture;
+	Texture snakeTailTexture;
+	Texture growTexture;
+	Texture spikeWallTexture;
+	Texture backgroundTexture;
+	Texture black512Texture;
+	Texture arrowTexture;
+	Texture bombTexture;
+	Texture bombButton;
+	
+	//For spike walls
+	Array<Rectangle> spikeWallArray;
+	//For the snake tail
+	Array<Rectangle> rectangleTail;
+	
+	
+	//Rectangles on screen	
+	Rectangle nextLocation;
+	Rectangle currentLocation;
+	
+	Rectangle snakeHeadRec;
+	Rectangle growLocation;
+	Rectangle bombRec;
+		
+	//For determining locations for the snake array
+	float lastXinTheTail;
+	float lastYinTheTail;
+	
+	
+	//For determining different actions
+	private int scoreTotal;
+	int lastNumOfGrowPillsEaten;
+	int growPillsEaten;
+	long nanosecondsToRecalc;  //records how long since last render
+	long timeForUpdate;		//should we update?
+	boolean gameOver;
+	boolean afterFirstMove;  //Has the snake started moving
+    boolean growPillActive;
+    static boolean gamePaused;	
+    char lastPressed;  //last direction input
+    boolean openCloseHeadFlag;  //controls head animation
+    int hiScore; //hi score from storage
+    
+    
+    boolean bombOnField;
+    boolean hasBomb;
+	
+	//For displaying messages
+	private String gameOverStr;
+	private String pauseStr;
+	private String restartStr;
+	private String quitStr;
+	private String scoreStr;
+	private String gamePausedDisplayStr;
+	private String hiScoreStr;
+	
+	//for text
+	BitmapFont FontName;
+		
+	//for lines
+	ShapeRenderer shapeRenderer;
+	
+	//for saving things
+	
+	Preferences prefStorage;
+	
+	
+	//initialize game
+	@Override
+	public void create() {		
+		float w = Gdx.graphics.getWidth();
+		float h = Gdx.graphics.getHeight();
+		
+		gamePaused = false;
+		
+		
+		//camera = new OrthographicCamera(1, h/w);
+		
+		camera = new OrthographicCamera();
+		camera.setToOrtho(false, screenWidth, screenHeight);
+		batch = new SpriteBatch();
+		
+		/*texture = new Texture(Gdx.files.internal("data/libgdx.png"));
+		texture.setFilter(TextureFilter.Linear, TextureFilter.Linear);
+		
+		TextureRegion region = new TextureRegion(texture, 0, 0, 512, 275);
+		
+		sprite = new Sprite(region);
+		sprite.setSize(0.9f, 0.9f * sprite.getHeight() / sprite.getWidth());
+		sprite.setOrigin(sprite.getWidth()/2, sprite.getHeight()/2);
+		sprite.setPosition(-sprite.getWidth()/2, -sprite.getHeight()/2);*/
+		
+		//Load Images into Textures
+		snakeHeadRecTexture = new Texture(Gdx.files.internal("snakeImg/snakeHeadClose16.png"));
+		snakeHeadOpenRecTexture= new Texture(Gdx.files.internal("snakeImg/snakeHeadOpen16.png"));
+		snakeTailTexture= new Texture(Gdx.files.internal("snakeImg/snakeTail16.png"));
+		growTexture = new Texture(Gdx.files.internal("snakeImg/growPill16.png"));
+		spikeWallTexture =  new Texture(Gdx.files.internal("snakeImg/spikeWall16.png"));
+		backgroundTexture = new Texture(Gdx.files.internal("snakeImg/rocks1024.png"));
+		black512Texture = new Texture(Gdx.files.internal("snakeImg/black512.png"));
+		arrowTexture = new Texture(Gdx.files.internal("snakeImg/arrowUp32.png"));
+		bombTexture = new Texture(Gdx.files.internal("snakeImg/bomb16.png"));
+		bombButton = new Texture(Gdx.files.internal("snakeImg/bomb64.png"));
+		
+		//Set Rectangles
+		growLocation = new Rectangle();
+		growLocation.width = rectangleSize;
+		growLocation.height = rectangleSize;
+		
+		bombRec = new Rectangle();
+		bombRec.width = rectangleSize;
+		bombRec.height = rectangleSize;
+		
+		
+		snakeHeadRec = new Rectangle();
+		snakeHeadRec.x = screenWidth/2 - rectangleSize/2;
+		snakeHeadRec.y = screenHeight/2;
+		snakeHeadRec.width = rectangleSize;
+		snakeHeadRec.height = rectangleSize;
+				
+		nextLocation = new Rectangle();
+		nextLocation.x = snakeHeadRec.x;
+		nextLocation.y = snakeHeadRec.y;
+		
+		currentLocation = new Rectangle();
+		currentLocation.x = snakeHeadRec.x;
+		currentLocation.y = snakeHeadRec.y;
+		
+		
+		rectangleTail = new Array<Rectangle>();
+		spikeWallArray = new Array<Rectangle>();
+		
+	
+		
+		
+		
+		
+		//Set Message info
+	    FontName = new BitmapFont();
+	    gameOverStr = "Game Over";
+	    pauseStr = "PAUSE";
+	    gamePausedDisplayStr = "Game is Paused";
+	    restartStr = "RESTART";
+	    
+	    
+	    gameOver = false;
+	    afterFirstMove=false;
+	    lastPressed= ' ';
+	    scoreTotal = 0;
+	    openCloseHeadFlag = false;
+	    growPillActive = false;
+	    hasBomb = false;
+	    bombOnField = false;
+	    
+	    //nanosecondsToRecalc = 1000000000;
+		nanosecondsToRecalc = 250000000;
+	  	
+		lastXinTheTail = -1;
+	  	lastYinTheTail = -1;
+	  	lastNumOfGrowPillsEaten = 0;
+	  	growPillsEaten= 0;
+	    
+	    //for drawing lines
+	    shapeRenderer= new ShapeRenderer();
+	    
+	    
+	    prefStorage = Gdx.app.getPreferences("My Preferences");
+	    hiScore = prefStorage.getInteger("hiScore", 0);
+	    
+	}
+
+	@Override
+	public void dispose() {
+		snakeHeadRecTexture.dispose();
+		growTexture.dispose();
+		batch.dispose();
+		texture.dispose();
+
+		
+	}
+
+	@Override
+	public void render() {		
+		
+		Gdx.gl.glClearColor(0, 0, 0, 1);
+		Gdx.gl.glClear(GL10.GL_COLOR_BUFFER_BIT);
+		
+		batch.setProjectionMatrix(camera.combined);
+		
+		
+		
+		//check if the snake got a grow pill
+		if( growPillCollisionCheck() == false)
+			 growPillActive = false;
+		
+		//check to see if snake has gotten bomb
+		if( bombOnField )
+		{
+			if(  bombCollisionCheck() ==false)
+			{
+				hasBomb = true;
+				bombOnField = false;
+			}
+		}
+		
+	
+		//update the score string
+		scoreStr = "SCORE: " + scoreTotal;
+		hiScoreStr = "High Score: " + hiScore;
+		
+		
+		
+		//draw lines
+		 Gdx.gl10.glLineWidth(2);
+		 shapeRenderer.setProjectionMatrix(camera.combined);
+		 
+		   // menu line left vertical
+		  shapeRenderer.begin(ShapeType.Line);
+		  shapeRenderer.setColor(1, 1, 1, 1);
+		  shapeRenderer.line(playAreaXmin, 0,playAreaXmin, screenHeight);
+		  shapeRenderer.end(); 
+		  		  
+		  
+		  // menu line right vertical
+		  shapeRenderer.begin(ShapeType.Line);
+		  shapeRenderer.setColor(1, 1, 1, 1);
+		  shapeRenderer.line(playAreaXmax, 0,playAreaXmax, screenHeight);
+		  shapeRenderer.end(); 
+		  		  
+		   
+		  //top left horizontal
+		  shapeRenderer.begin(ShapeType.Line);
+		  shapeRenderer.setColor(1, 1, 1, 1);
+		  shapeRenderer.line(0, screenHeight*3/4,playAreaXmin, screenHeight*3/4);
+		  shapeRenderer.end(); 
+		   
+		  //bottom left horizontal
+		  shapeRenderer.begin(ShapeType.Line);
+		  shapeRenderer.setColor(1, 1, 1, 1);
+		  shapeRenderer.line(0, screenHeight*1/4,playAreaXmin, screenHeight*1/4);
+		  shapeRenderer.end(); 
+		   
+		   
+		   
+		  //top right horizontal
+		  shapeRenderer.begin(ShapeType.Line);
+		  shapeRenderer.setColor(1, 1, 1, 1);
+		  shapeRenderer.line(playAreaXmax, screenHeight/3*2,screenWidth, screenHeight/3*2);
+		  shapeRenderer.end(); 
+		   
+		  //bottom right horizontal
+		  shapeRenderer.begin(ShapeType.Line);
+		  shapeRenderer.setColor(1, 1, 1, 1);
+		  shapeRenderer.line(playAreaXmax, screenHeight/3,screenWidth, screenHeight/3);
+		  shapeRenderer.end(); 
+		  
+		  
+		   
+	     
+		//Begin update batch for UI
+		//-----------------------------------------------------------------------
+		batch.begin();
+
+		//Draw background
+		batch.draw(backgroundTexture, playAreaXmin, playAreaYmin);
+		//batch.draw(black512Texture, playAreaXmax, playAreaYmin);
+		
+		//draw Arrows
+		TextureRegion arrowRegion = new TextureRegion(arrowTexture,0,0,32,32);
+		
+		//left
+		batch.draw(arrowRegion, playAreaXmin, screenHeight/2, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 0f, false);
+		//right
+		batch.draw(arrowRegion, playAreaXmax-rectangleSize, screenHeight/2, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 180f, false);
+		//up left
+		batch.draw(arrowRegion, screenWidth/3, playAreaYmax-rectangleSize, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 270f, false);
+		
+		//up right
+		batch.draw(arrowRegion, screenWidth/3*2, playAreaYmax-rectangleSize, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 270f, false);
+		
+		//down left
+		batch.draw(arrowRegion, screenWidth/3, playAreaYmin+rectangleSize, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 90f, false);
+		
+		//down right
+		batch.draw(arrowRegion, screenWidth/3*2, playAreaYmin+rectangleSize, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 90f, false);
+		
+		
+		
+		//Draw Text for pause, restart, score
+		FontName.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+		FontName.draw(batch, pauseStr, 0, screenHeight);
+			
+		FontName.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+		FontName.draw(batch, restartStr, 0, screenHeight * 1/4);
+			
+		FontName.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+		FontName.draw(batch, scoreStr, screenWidth/2-20, screenHeight-30);
+		
+		FontName.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+		FontName.draw(batch, hiScoreStr, playAreaXmax, screenHeight-30);
+		
+		
+		
+		if(! gamePaused )	
+		 {
+					
+			if(!gameOver)
+			{
+				//draw grow pill
+				if(growPillActive)
+				{
+					batch.draw(growTexture, growLocation.x, growLocation.y);
+				}	
+				//draw bomb
+				if(bombOnField)
+				{
+					batch.draw(bombTexture, bombRec.x, bombRec.y);
+				}	
+				//draw bomb button 
+				
+				if(hasBomb)
+				{
+					batch.draw(bombButton, playAreaXmax+10, screenHeight/3 +10);
+				}
+				
+				
+				//draw spike walls
+				Iterator<Rectangle> spikeWallIter = spikeWallArray.iterator();
+				while(spikeWallIter.hasNext())
+				{
+					Rectangle curSpikeWall = spikeWallIter.next();
+					batch.draw(spikeWallTexture, curSpikeWall.x, curSpikeWall.y);
+				}
+				
+				
+				
+		//Rotate head depending on direction and draw
+	    //	
+				
+				if(lastPressed == ' ')
+				batch.draw(snakeHeadRecTexture, snakeHeadRec.x, snakeHeadRec.y);
+				
+				TextureRegion snakeHeadregion;
+				if(openCloseHeadFlag)
+					 snakeHeadregion= new TextureRegion(snakeHeadRecTexture,0,0,rectangleSize,rectangleSize);
+				else
+					 snakeHeadregion= new TextureRegion(snakeHeadOpenRecTexture,0,0,rectangleSize,rectangleSize);
+								
+				switch(lastPressed)
+				{
+								
+					case 'l': batch.draw(snakeHeadregion, snakeHeadRec.x, snakeHeadRec.y, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 90f, false);
+							break;
+					case 'r': batch.draw(snakeHeadregion, snakeHeadRec.x, snakeHeadRec.y, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 270f, false);
+							break;
+					case 'u':batch.draw(snakeHeadregion, snakeHeadRec.x, snakeHeadRec.y, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 0f, false);
+							break;
+					case 'd':batch.draw(snakeHeadregion, snakeHeadRec.x, snakeHeadRec.y, rectangleSize / 2f, rectangleSize / 2f, rectangleSize, rectangleSize, 1, 1, 180f, false);
+							break;
+					default: break;
+		
+				}
+				
+		//end head rotation section		
+				
+				
+			//draw snake tail	
+				Iterator<Rectangle> tailIter = rectangleTail.iterator();
+				while(tailIter.hasNext())
+				{
+					Rectangle curTailPart = tailIter.next();
+					batch.draw(snakeTailTexture, curTailPart.x, curTailPart.y);
+				}
+				
+				
+			}
+			else{
+				
+				if(scoreTotal > hiScore) 
+				{
+					prefStorage.putInteger("hiScore", scoreTotal);
+				}
+				
+				
+				//draw game over if you lose
+				FontName.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+				FontName.draw(batch, gameOverStr, screenWidth/2, screenHeight/2);
+		
+			}
+		
+		
+		 }
+		else
+		{
+			//draw game paused if pause
+		     FontName.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+			 FontName.draw(batch, gamePausedDisplayStr, screenWidth/2, screenHeight/2);
+		   
+		}
+		
+		
+		batch.end();
+		
+		//end Draw
+		
+		
+		//begin calc on what to do next
+		if(!gamePaused)
+		{
+			if(!gameOver && afterFirstMove)
+			{
+				//if snake goes out of bounds then fail
+				if (snakeHeadRec.x == playAreaXmin || snakeHeadRec.x > playAreaXmax)
+					gameOver = true;
+				if (snakeHeadRec.y == playAreaYmin|| snakeHeadRec.y == playAreaXmax - rectangleSize)
+					gameOver = true;
+			
+				//if snake touches its tail then fail
+				Iterator<Rectangle> tailUpdIter = rectangleTail.iterator();
+				while(tailUpdIter.hasNext())
+				{		
+					Rectangle curTailPart = tailUpdIter.next();
+					
+					if(snakeHeadRec.overlaps(curTailPart)||currentLocation.overlaps(curTailPart)||nextLocation.overlaps(curTailPart))
+						gameOver = true;
+				}
+				
+				//if the snake touches a spike wall you lose
+				Iterator<Rectangle> spikeWallIter = spikeWallArray.iterator();
+				while(spikeWallIter.hasNext())
+				{
+					Rectangle curSpikeWall = spikeWallIter.next();
+					if(snakeHeadRec.overlaps(curSpikeWall)||currentLocation.overlaps(curSpikeWall)||nextLocation.overlaps(curSpikeWall))
+						gameOver = true;
+				}
+
+			}
+
+		
+			//update this stuff every second(-your score total)
+			if(TimeUtils.nanoTime() - timeForUpdate > (nanosecondsToRecalc - (100000*scoreTotal) ) )
+			{
+				//flip this to make the mouth open/close
+				if(openCloseHeadFlag)
+					openCloseHeadFlag=false;
+				else
+					openCloseHeadFlag = true;
+				
+				
+			//update this section if the snake got a grow pill
+				if(!growPillActive)
+				{
+					spawnGrowPill();
+					growPillActive = true;
+				
+					growPillsEaten++;
+					if(growPillsEaten>1)
+					{
+						add1ToTail();
+						scoreTotal+=10;
+					}
+					
+					
+					if(growPillsEaten%3 ==0)
+					{
+						addToSpikeWall();
+					}
+						
+				 }	
+				
+				
+				//spawn grow pill
+				if(scoreTotal > 1 && scoreTotal%7==0)
+				{
+					
+					if(!hasBomb && bombOnField == false)
+					{
+						spawnBomb();
+						bombOnField=true;
+					}
+					
+				}
+				
+				
+				
+			
+			    //update time to calc against
+				timeForUpdate = TimeUtils.nanoTime();
+			
+				//set current location of snakehead
+				currentLocation.x = snakeHeadRec.x;
+				currentLocation.y = snakeHeadRec.y;
+			
+				//determine next location based off the last input
+				switch(lastPressed)
+				{
+					case 'l': //snakeHeadRec.x -= 200 * Gdx.graphics.getDeltaTime();
+							nextLocation.x -= rectangleSize;					
+							//snakeHeadRec.x -= rectangleSize;
+							break;
+					case 'r':// snakeHeadRec.x += 200 * Gdx.graphics.getDeltaTime();
+					    	nextLocation.x += rectangleSize;
+					  	//snakeHeadRec.x += rectangleSize ;
+					    	break;
+					case 'u': //snakeHeadRec.y += 200 * Gdx.graphics.getDeltaTime();
+							nextLocation.y += rectangleSize;
+				      //	snakeHeadRec.y += rectangleSize  ;
+							break;
+					case 'd': //snakeHeadRec.y -= 200 * Gdx.graphics.getDeltaTime();
+							nextLocation.y -= rectangleSize;
+					//	snakeHeadRec.y -= rectangleSize ;
+							break;
+						
+					default: break;
+		
+				}
+			
+				//update where the snake rectangles will be next render
+				updateSnakeLocations();
+			
+			
+		
+			};
+		
+		//key press check/update - Set the most recent direction from keyboard
+			if(Gdx.input.isKeyPressed(Keys.LEFT) && lastPressed != 'r')
+			{
+			//snakeHeadRec.x -= 200 * Gdx.graphics.getDeltaTime();
+				afterFirstMove= true;
+				lastPressed = 'l';
+			}
+			if(Gdx.input.isKeyPressed(Keys.RIGHT)  && lastPressed != 'l') 
+			{
+			//snakeHeadRec.x += 200 * Gdx.graphics.getDeltaTime();
+				afterFirstMove= true;
+				lastPressed = 'r';
+			}
+			if(Gdx.input.isKeyPressed(Keys.UP)  && lastPressed != 'd') {
+			//snakeHeadRec.y += 200 * Gdx.graphics.getDeltaTime();
+				afterFirstMove= true;
+				lastPressed = 'u';
+			}
+			if(Gdx.input.isKeyPressed(Keys.DOWN) && lastPressed != 'u'){
+			//snakeHeadRec.y -= 200 * Gdx.graphics.getDeltaTime();
+				afterFirstMove= true;
+				lastPressed = 'd';
+			}
+			
+			if((Gdx.input.isKeyPressed(Keys.SPACE)||Gdx.input.isKeyPressed(Keys.O)) && hasBomb){
+					
+					bombExplode();
+				}
+			
+			if(Gdx.input.isKeyPressed(Keys.A))
+				{
+					 restart();
+				}
+			
+			
+			
+		
+		//touch controls check/update -- set the most recent direction from touch
+			if(Gdx.input.isTouched())
+			{
+				Vector3 touchPosition= new Vector3();
+				touchPosition.set(Gdx.input.getX(), Gdx.input.getY(),0);
+				camera.unproject(touchPosition);
+			
+			
+				
+				touchInputLogic(touchPosition);
+			}
+		
+		
+		
+		//check to make sure snake is in bounds
+			if(snakeHeadRec.x < playAreaXmin) {
+				snakeHeadRec.x=playAreaXmin;
+				lastPressed = ' ' ;
+				gameOver = true;
+			}
+			if(snakeHeadRec.x > playAreaXmax-rectangleSize) {
+				snakeHeadRec.x=playAreaXmax-rectangleSize;
+				lastPressed = ' ';
+				gameOver = true;
+			}
+		
+			if(snakeHeadRec.y < playAreaYmin) {
+				snakeHeadRec.y=playAreaYmin;
+				lastPressed = ' ' ;
+				gameOver = true;
+			}
+			if(snakeHeadRec.y > playAreaYmax-rectangleSize) {
+				snakeHeadRec.y=playAreaYmax-rectangleSize;
+				lastPressed = ' ';
+				gameOver = true;
+			}
+		
+		}
+		
+		
+		
+		//menu button touch
+		
+		if(Gdx.input.isTouched())
+		{
+			Vector3 touchPosition= new Vector3();
+			touchPosition.set(Gdx.input.getX(), Gdx.input.getY(),0);
+			camera.unproject(touchPosition);
+			//bucket.x = touchPosition.x-64/2;
+			
+			if (touchPosition.x>0 && touchPosition.x < playAreaXmin && touchPosition.y > screenHeight*(3/4) )
+				pause();
+		
+			if (touchPosition.x>0 && touchPosition.x < playAreaXmin && touchPosition.y > playAreaYmin && touchPosition.y < (screenHeight/4))
+				restart();
+			
+			if(gameOver)
+			{
+			  if (touchPosition.x< (screenWidth/3)*2 && touchPosition.x>screenWidth/3 && touchPosition.y > screenHeight/3 && touchPosition.y< (screenHeight/3)*2 )
+				closeGame();
+			}
+			
+			//Explode bomb
+			if(!gameOver & !gamePaused & hasBomb)
+			{
+			  if (touchPosition.x > playAreaXmax && touchPosition.y > screenHeight/3 && touchPosition.y< (screenHeight/3)*2 )
+				bombExplode();
+			}
+			
+		}
+		
+		
+		
+		
+		
+	}
+
+	@Override
+	public void resize(int width, int height) {
+	}
+
+	@Override
+	public void pause() {
+		
+	   // lastPressed= ' ';
+		
+		if(gamePaused)
+			gamePaused = false;
+		else
+			gamePaused = true;
+	}
+
+	@Override
+	public void resume() {
+	}
+	
+	
+	public void restart() {
+	
+		create();
+	}
+	
+	
+	public void closeGame()
+	{
+		//dispose();
+		Gdx.app.exit();
+		
+	}
+	
+	//update the x y coordinates for all tail parts
+	private void updateSnakeLocations()
+	{
+
+		snakeHeadRec.x = nextLocation.x;
+		snakeHeadRec.y = nextLocation.y;
+		
+		float nextX = currentLocation.x;
+		float nextY = currentLocation.y;
+		float curX = 0;
+		float curY = 0;
+		
+		Iterator<Rectangle> tailUpdIter = rectangleTail.iterator();
+		while(tailUpdIter.hasNext())
+		{		
+			Rectangle curTailPart = tailUpdIter.next();
+			
+			
+			curX = curTailPart.x;
+			curY = curTailPart.y;
+			
+			updTailPart(nextX, nextY, curTailPart, lastPressed);
+		
+			nextX = curX;
+			nextY=curY;
+			
+			
+			
+			lastXinTheTail = curTailPart.x;
+			lastYinTheTail = curTailPart.y;
+			
+			
+		}
+	}
+	
+	private void touchInputLogic(Vector3 touchPosition)
+	{
+
+		//if(touchPosition.x > screenWidth/6 && touchPosition.x < ((screenWidth-(screenWidth/6))/3)+(screenWidth/6) && touchPosition.y < screenHeight-rectangleSize*2 &&  lastPressed != 'r')
+		if(touchPosition.x > playAreaXmin && touchPosition.x < screenWidth/3 && touchPosition.y < screenHeight-rectangleSize*2 &&  lastPressed != 'r')
+		{
+			afterFirstMove= true;
+			lastPressed = 'l';
+		}
+		//if(touchPosition.x > screenWidth/6 && touchPosition.x > ((screenWidth-(screenWidth/6))/3)*2+(screenWidth/6) && touchPosition.y < screenHeight-rectangleSize*2  && lastPressed != 'l') 
+		if(touchPosition.x > (screenWidth/3)*2 && touchPosition.x < playAreaXmax && touchPosition.y < screenHeight-rectangleSize*2  && lastPressed != 'l') 
+		{
+		
+			afterFirstMove= true;
+			lastPressed = 'r';
+		}
+		//if(touchPosition.x > screenWidth/6 && touchPosition.x <((screenWidth-(screenWidth/6))/3)*2+(screenWidth/6)&&touchPosition.x > ((screenWidth-(screenWidth/6))/3)+(screenWidth/6) && touchPosition.y > screenHeight/2  &&touchPosition.y < screenHeight-rectangleSize*2   && lastPressed != 'd') {
+		if(touchPosition.x > screenWidth/3 && touchPosition.x <(screenWidth/3)*2 && touchPosition.y > screenHeight/2  &&touchPosition.y < screenHeight-rectangleSize*2   && lastPressed != 'd') 
+		{			
+			afterFirstMove= true;
+			lastPressed = 'u';
+		}
+		//if(touchPosition.x > screenWidth/6 && touchPosition.x < ((screenWidth-(screenWidth/6))/3)*2+(screenWidth/6) &&touchPosition.x > ((screenWidth-(screenWidth/6))/3)+(screenWidth/6) && touchPosition.y < screenHeight/2  && lastPressed != 'u'){
+		if(touchPosition.x > screenWidth/3 && touchPosition.x <(screenWidth/3)*2 && touchPosition.y < screenHeight/2   && lastPressed != 'u') 
+		{
+		
+			afterFirstMove= true;
+			lastPressed = 'd';
+		}
+		
+		
+		
+		//old method
+		/*
+		if(touchPosition.x > screenWidth/6 && touchPosition.x < (screenWidth/3) && touchPosition.y < screenHeight-rectangleSize*2 &&  lastPressed != 'r')
+		{
+	
+			afterFirstMove= true;
+			lastPressed = 'l';
+		}
+		if(touchPosition.x > screenWidth/6 && touchPosition.x > (screenWidth/3)*2 && touchPosition.y < screenHeight-rectangleSize*2  && lastPressed != 'l') 
+		{
+		
+			afterFirstMove= true;
+			lastPressed = 'r';
+		}
+		if(touchPosition.x > screenWidth/6 && touchPosition.x < (screenWidth/3)*2 &&touchPosition.x > (screenWidth/3) && touchPosition.y > screenHeight/2  &&touchPosition.y < screenHeight-rectangleSize*2   && lastPressed != 'd') {
+			
+			afterFirstMove= true;
+			lastPressed = 'u';
+		}
+		if(touchPosition.x > screenWidth/6 && touchPosition.x < (screenWidth/3)*2 &&touchPosition.x > (screenWidth/3) && touchPosition.y < screenHeight/2  && lastPressed != 'u'){
+		
+			afterFirstMove= true;
+			lastPressed = 'd';
+		}*/
+		
+	}
+	
+	
+	
+	
+	//check for overlaps --Returns false if it overlaps
+    private	boolean growPillCollisionCheck()
+	{
+    	//Rectangle collisionCheck = new Rectangle();
+		if(snakeHeadRec.overlaps(growLocation)||currentLocation.overlaps(growLocation)||nextLocation.overlaps(growLocation))
+		{
+			return false;
+		}
+		
+		
+		return true;
+		
+		
+	}
+    
+
+	//check for overlaps --Returns false if it overlaps
+    private	boolean bombCollisionCheck()
+   	{
+       	//Rectangle collisionCheck = new Rectangle();
+   		if(snakeHeadRec.overlaps(bombRec)||currentLocation.overlaps(bombRec)||nextLocation.overlaps(bombRec))
+   		{
+   			return false;
+   		}
+   		
+   		
+   		return true;
+   		
+   		
+   	}
+    
+    
+	
+	//Add a new tail part to the snake
+	private void add1ToTail()
+	{
+		Rectangle newTailPart = new Rectangle();
+		
+
+		if (lastXinTheTail == -1 &&	lastYinTheTail ==-1)
+		{		
+			
+			newTailPart.x = snakeHeadRec.x;// snakeHeadRec.x - rectangleSize;
+			newTailPart.y = snakeHeadRec.y;//snakeHeadRec.y - rectangleSize;
+		}
+		else{
+			newTailPart.x = lastXinTheTail;
+			newTailPart.y = lastYinTheTail;
+		}
+		
+		
+		
+		newTailPart.width = rectangleSize;
+		newTailPart.height = rectangleSize;
+		rectangleTail.add(newTailPart);
+		//lastDrop = TimeUtils.nanoTime();
+		
+	}
+	
+	private void addToSpikeWall()
+	{
+
+		float randomX =0;
+		float randomY =0 ;
+		
+		boolean goodLocation = false;
+		
+		
+		
+		
+		while(goodLocation == false)
+		{
+			if (randomX != growLocation.x && randomY!=growLocation.y)
+			
+			{
+			randomX =  MathUtils.random(playAreaXmin + growSize, playAreaXmax-growSize);
+			randomY = MathUtils.random(playAreaYmin+growSize, playAreaYmax-growSize);
+			goodLocation = checkLocation(randomX, randomY);
+			}
+		}
+		
+		
+		
+		
+		Rectangle newSpikeWall = new Rectangle();
+		newSpikeWall.width = rectangleSize;
+		newSpikeWall.height = rectangleSize;
+		
+		
+		newSpikeWall.x = randomX;
+		newSpikeWall.y = randomY;
+		
+		spikeWallArray.add(newSpikeWall);
+		
+	}
+	
+	
+	
+	//set the provided tail part to the desired coordinates
+	private void updTailPart(float priorX, float priorY, Rectangle curTailPart, char lastDir)
+	{
+			curTailPart.x = priorX;
+			curTailPart.y = priorY;
+	
+	}
+	
+	
+	//Set grow pill location
+	private void spawnGrowPill()
+	{
+		
+		
+		float randomX =0;
+		float randomY =0 ;
+		
+		boolean goodLocation = false;
+		
+		
+		
+		
+		while(goodLocation == false)
+		{
+			randomX =  MathUtils.random(playAreaXmin + growSize, playAreaXmax-growSize);
+			randomY = MathUtils.random(playAreaYmin+growSize, playAreaYmax-growSize);
+			goodLocation = checkLocation(randomX, randomY);
+		}
+		
+		
+		growLocation.x = randomX;
+		growLocation.y = randomY;
+	}
+	
+	
+	
+	private void spawnBomb()
+	{
+		
+		
+		float randomX =0;
+		float randomY =0 ;
+		
+		boolean goodLocation = false;
+		
+		
+		
+		
+		while(goodLocation == false)
+		{
+			randomX =  MathUtils.random(playAreaXmin + growSize, playAreaXmax-growSize);
+			randomY = MathUtils.random(playAreaYmin+growSize, playAreaYmax-growSize);
+			goodLocation = checkLocation(randomX, randomY);
+		}
+		
+		
+		bombRec.x = randomX;
+		bombRec.y = randomY;
+	}
+	
+	private void bombExplode()
+	{
+		spikeWallArray.clear();
+		
+		scoreTotal-=120;
+		/*Iterator<Rectangle> spikeWallIter = spikeWallArray.iterator();
+		while(spikeWallIter.hasNext())
+		{
+			spikeWallIter.remove();
+		}*/
+		
+		hasBomb= false;
+		
+		
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	//determine if the location intersects the snake
+	private boolean checkLocation(float targetX, float targetY)
+	{
+		if (targetX == currentLocation.x || targetX == nextLocation.x)
+		{
+			return false;
+		}
+		if (targetY == currentLocation.y || targetY == nextLocation.y)
+		{
+			return false;
+		}
+
+		Iterator<Rectangle> tailCheckIter = rectangleTail.iterator();
+		while(tailCheckIter.hasNext())
+		{		
+			Rectangle curTailPart = tailCheckIter.next();
+			
+			if (targetX == curTailPart.x || targetY == curTailPart.y)
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
+	
+	
+	
+}
